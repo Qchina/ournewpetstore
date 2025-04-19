@@ -1,22 +1,23 @@
 <template>
   <div class="logs-container">
     <div class="auth-form">
-      <!-- 将标题和按钮放在一个容器里 -->
       <div class="header-container">
         <h2>{{ username }}_log</h2>
         <button type="button" @click="returnToMyAccount" class="return-button">Return to My Account</button>
       </div>
-      <form class="form-container">
-        <!-- 添加表头 -->
-        <div class="form-group header-group">
+      <!-- 修改表格容器结构 -->
+      <div class="form-container">
+        <div class="header-group">
           <div class="col">Time</div>
           <div class="col">History</div>
         </div>
-        <div v-for="log in logs" :key="log.time + log.behavior" class="form-group log-item">
-          <div class="col">{{ log.time }}</div>
-          <div class="col">{{ log.behavior }}</div>
+        <div class="logs-scroll-container">
+          <div v-for="log in logs" :key="log.time + log.behavior" class="log-item">
+            <div class="col">{{ log.time }}</div>
+            <div class="col">{{ log.behavior }}</div>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   </div>
 </template>
@@ -35,27 +36,47 @@ export default {
     await Promise.all([this.fetchUsername(), this.fetchLogs()]);
   },
   methods: {
-    async fetchUsername() {
+          async fetchUsername() {
       try {
-        const response = await axios.get('/api/user/info');
-        this.username = response.data.username;
+        // 从localStorage获取用户信息
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        this.username = user.username || '';
       } catch (error) {
-        console.error('Failed to fetch username:', error);
+        console.error('获取用户名失败:', error);
       }
     },
     async fetchLogs() {
       try {
-        const response = await axios.get('/api/user/logs');
-        this.logs = response.data;
+        const response = await axios.get('http://localhost:9090/api/v1/logs', {
+          withCredentials: true
+        });
+        console.log('日志响应数据:', response); // 添加调试日志
+        
+        // 直接使用响应数据，因为后端直接返回日志列表
+        if (Array.isArray(response.data)) {
+          this.logs = response.data.map(log => ({
+            time: log.time,
+            behavior: log.behavior
+          }));
+        } else {
+          console.error('获取到的日志数据格式不正确');
+          this.logs = [];
+        }
       } catch (error) {
-        console.error('Failed to fetch logs:', error);
+        if (error.response?.status === 401) {
+          console.error('用户未登录');
+          this.$router.push('/userauth');
+        } else {
+          console.error('获取日志失败:', error);
+        }
+        this.logs = [];
       }
     },
     returnToMyAccount() {
       this.$emit('switch-to-userProfile');
     }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -116,11 +137,6 @@ h2 {
   font-size: 14px;
 }
 
-.form-container {
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-}
 button {
   background-color: #2196F3;
   color: white;
@@ -144,11 +160,6 @@ button:hover {
   border-bottom: none;
 }
 
-.header-group {
-  background-color: #f5f5f5;
-  font-weight: bold;
-}
-
 .col {
   flex: 1;
   padding: 12px;
@@ -168,4 +179,52 @@ button:hover {
   background-color: #f0f0f0;
   transition: background-color 0.3s ease;
 }
+
+.form-container {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  max-height: 500px; /* 设置最大高度 */
+  display: flex;
+  flex-direction: column;
+}
+
+.header-group {
+  background-color: #f5f5f5;
+  font-weight: bold;
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.logs-scroll-container {
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.log-item {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* 添加滚动条样式 */
+.logs-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.logs-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.logs-scroll-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.logs-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
 </style>
