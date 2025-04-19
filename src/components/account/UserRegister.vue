@@ -1,10 +1,8 @@
 <template>
   <div class="register-container">
-  <div class="auth-form">
-    <h2>Register A New Account</h2>
-    <form @submit.prevent="handleRegister">
-      <div class = "form-container">
-      <div class="form-column">
+    <div class="auth-form">
+      <h2>Register A New Account</h2>
+      <form @submit.prevent="handleRegister">
         <div class="form-group">
           <label>Username</label>
           <input v-model="registerForm.username" type="text" required>
@@ -19,76 +17,19 @@
           <p v-if="passwordMismatch" class="error-message">密码不匹配</p>  
         </div>
         <div class="form-group">
-          <label>Email</label>
-          <input v-model="registerForm.email" type="email" required>
+        <label>Captcha</label>
+        <div class="captcha-container">
+          <input v-model="registerForm.captcha" type="text" required>
+          <img :src="captchaImage" @click="refreshCaptcha" alt="验证码" class="captcha-image">
         </div>
-        <div class="form-group">
-          <label>First Name</label>
-          <input v-model="registerForm.firstname" type="text" required>
-        </div>
-        <div class="form-group">
-          <label>Last Name</label>
-          <input v-model="registerForm.lastname" type="text" required>
-        </div>
-      <div class="form-group">
-          <label>Telephone</label>
-          <input v-model="registerForm.phone" type="tel" required>
-      </div>
-      <div class="form-group">
-          <label>Address1</label>
-          <input v-model="registerForm.address1" type="text" required>
-        </div>
-        </div>
-      <div class="form-column">
-      <!-- 这里可以添加更多的表单组 -->
-      
-      <div class="form-group">
-          <label>Address2</label>
-          <input v-model="registerForm.address2" type="text">
-        </div>
-      <div class="form-group">
-          <label>City</label>
-          <input v-model="registerForm.city" type="text" required>
-        </div>
-        <div class="form-group">
-          <label>Status</label>
-          <input v-model="registerForm.status" type="text" required>
-        </div>
-        <div class="form-group">
-          <label>Zip Code</label>
-          <input v-model="registerForm.zip" type="text" required>
-        </div>
-        <div class="form-group">
-          <label>Country</label>
-          <input v-model="registerForm.country" type="text" required>
-        </div>
-        <div class="form-group">
-          <label>Language Preference</label>
-          <input v-model="registerForm.language" type="text" required>
-        </div>
-        <div class="form-group">
-          <label>Favourite Category</label>
-          <input v-model="registerForm.favoriteCategory" type="text" required>
-        </div>
-        <div class="form-group checkbox-group">
-        <label>
-          <input type="checkbox" v-model="registerForm.enableMyList"> Enable MyList
-        </label>
-        </div>
-        <div class="form-group checkbox-group">
-        <label>
-          <input type="checkbox" v-model="registerForm.enableMyBanner"> Enable MyBanner
-        </label>
-        </div>
-      </div>
       </div>
         <div class="form-footer">
-        <button type="submit">注册</button>
-        <p>Already have an accouunt？<a href="#" @click="switchToLogin">Go Login !</a></p>
-      </div>
-    </form>
+          <button type="submit">注册</button>
+        </div>
+      </form>
+      <p>Already have an account？<a href="#" @click="switchToLogin">Go Login !</a></p>
+    </div>
   </div>
-</div>
 </template>
 
 <script>
@@ -100,22 +41,13 @@ export default {
         username: '',
         password: '',
         confirmPassword: '',
-        email: '',
-        firstname: '',
-        lastname: '',
-        phone: '',
-        address1: '',
-        address2: '',
-        city: '',
-        zip: '',
-        status: '',
-        country: '',
-        language: 'English', // 新增语言偏好，默认英语
-        favoriteCategory: 'FISH', // 新增喜好分类，默认鱼类
-        enableMyList: true,
-        enableMyBanner: true
-      }
+        captcha: ''
+      },
+       captchaImage: '' // 验证码图片base64数据
     }
+  },
+  mounted() {
+    this.refreshCaptcha();  // 添加mounted钩子，确保组件加载时获取验证码
   },
   computed: {
     passwordMismatch() {
@@ -125,23 +57,50 @@ export default {
     }
   },
   methods: {
+    async refreshCaptcha() {
+      try {
+        const response = await axios.get('http://localhost:9090/api/v1/captcha', {
+          withCredentials: true
+        });
+        this.captchaImage = response.data.captchaImage;
+      } catch (error) {
+        console.error('获取验证码失败:', error);
+        alert('获取验证码失败，请刷新页面重试');
+      }
+    },
     async handleRegister() {
       if (this.passwordMismatch) {
         alert('请确保两次输入的密码一致');
         return;
       }
-      // 这里添加注册逻辑
       try {
-        // Remove the unused response variable
-        await axios.post('http://localhost:8080/api/user/register', this.registerForm);
-        alert('注册成功');
-        this.$router.push('/login');
+        const registerData = { ...this.registerForm };
+        delete registerData.confirmPassword; // 删除确认密码字段
+        
+        const response = await axios.post('http://localhost:9090/api/v1/accounts/register', registerData, {
+          withCredentials: true
+        });
+        
+        if (response.data.success) {
+          alert('注册成功');
+          this.registerForm = {
+            username: '',
+            password: '',
+            confirmPassword: '',
+            captcha: ''
+          };
+          this.$emit('switch-to-login');
+        } else {
+          alert(response.data.message || '注册失败');
+          this.refreshCaptcha();
+        }
       } catch (error) {
         if (error.response) {
           alert(error.response.data.message || '注册失败');
         } else {
           alert('网络错误，请稍后再试');
         }
+        this.refreshCaptcha();
       }
     },
     switchToLogin() {
@@ -152,9 +111,30 @@ export default {
 </script>
 
 <style scoped>
+/* 添加验证码相关样式 */
+.captcha-container {
+  display: flex;
+  align-items: center;
+}
+
+.captcha-image {
+  margin-left: 10px;
+  height: 40px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  padding: 5px;
+}
+
+.captcha-container::after {
+  content: "Click to refresh";
+  margin-left: 10px;
+  font-size: 12px;
+  color: #666;
+}
+
 .register-container {
-  max-width: 900px;
   margin: 0 auto;
+  max-width: 400px;
   padding: 30px;
 }
 
@@ -170,7 +150,7 @@ export default {
 }
 
 .auth-form {
-  max-width: 900px; /* 适当增加表单容器的宽度 */
+  max-width: 400px;
   margin: 0 auto;
   padding: 30px;
   border-radius: 10px;
@@ -193,25 +173,12 @@ h2 {
   font-size: 20px;
 }
 
-.form-container {
-  display: flex;
-  gap: 20px;
-}
-
-.form-column {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
 .form-group {
-/* flex: 1 0 calc(50% - 10px); 每个表单组占50%宽度，减去一定的间距 */
-  margin-bottom: 0;
+  margin-bottom: 20px;
 }
 
 input {
-  width: 95%;;
+  width: 95%;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 3px;
@@ -243,27 +210,11 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
 .error-message {
   color: red;
   font-size: 12px;
   margin-top: 5px;
-}
-
-/* 新增勾选项样式 */
-.checkbox-group {
-  display: flex;
-  align-items: center;
-}
-
-.checkbox-group label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.checkbox-group input[type="checkbox"] {
-  width: auto;
-  margin-right: 8px;
 }
 
 .form-footer {

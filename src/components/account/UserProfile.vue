@@ -7,7 +7,7 @@
         <div class="form-column">
           <div class="form-group">
             <label>Username</label>
-            <input v-model="userProfile.username" type="text" required>
+            <input v-model="userProfile.username" type="text" required disabled>
           </div>
           <div class="form-group">
             <label>Email</label>
@@ -15,11 +15,11 @@
           </div>
           <div class="form-group">
             <label>First Name</label>
-            <input v-model="userProfile.firstname" type="text" required>
+            <input v-model="userProfile.firstName" type="text" required>
           </div>
           <div class="form-group">
             <label>Last Name</label>
-            <input v-model="userProfile.lastname" type="text" required>
+            <input v-model="userProfile.lastName" type="text" required>
           </div>
           <div class="form-group">
             <label>Telephone</label>
@@ -67,8 +67,8 @@ export default {
       userProfile: {
         username: '',
         email: '',
-        firstname: '',
-        lastname: '',
+        firstName: '',
+        lastName: '',
         phone: '',
         address1: '',
         address2: '',
@@ -84,19 +84,57 @@ export default {
   methods: {
     async fetchUserProfile() {
       try {
-        const response = await axios.get('/api/user/profile');
-        this.userProfile = response.data;
+        // 确保使用withCredentials发送请求
+        const response = await axios.get('http://localhost:9090/api/v1/accounts/profile', {
+          withCredentials: true
+        });
+        
+        console.log('获取用户信息响应:', response.data); // 添加日志查看响应内容
+        
+        if (response.data.success) {
+          this.userProfile = response.data.data;
+        } else {
+          console.error('获取用户信息失败:', response.data.message);
+          // 如果是未登录状态，可以尝试重定向到登录页面
+          if (response.data.message === '未登录') {
+
+            // 可以添加重定向到登录页面的逻辑
+            this.$router.push('/userauth');
+          } else {
+            alert(response.data.message || '获取用户信息失败');
+          }
+        }
       } catch (error) {
-        console.error('Failed to fetch user profile:', error);
+        console.error('获取用户信息失败:', error);
+        alert('网络错误，请稍后再试');
       }
     },
-    async handleUpdate() {
+        async handleUpdate() {
       try {
-        await axios.put('/api/user/profile', this.userProfile);
-        alert('Profile updated successfully');
+        console.log('准备更新的用户信息:', this.userProfile); // 添加日志
+        
+        const response = await axios.put('http://localhost:9090/api/v1/accounts/profile', this.userProfile, {
+          headers: {
+            'Content-Type': 'application/json' // 确保设置正确的内容类型
+          },
+          withCredentials: true
+        });
+        
+        console.log('更新响应:', response.data); // 添加日志
+        
+        if (response.data.success) {
+          alert('个人信息更新成功');
+          // 重新获取用户信息以确认更新
+          await this.fetchUserProfile();
+        } else {
+          alert(response.data.message || '更新失败');
+        }
       } catch (error) {
-        console.error('Failed to update profile:', error);
-        alert('Failed to update profile');
+        console.error('更新个人信息失败:', error);
+        if (error.response) {
+          console.error('错误响应:', error.response.data);
+        }
+        alert('网络错误，请稍后再试');
       }
     },
     switchToUserLogs() {
@@ -171,7 +209,12 @@ input {
   border-radius: 3px;
   background-color: #f5f9ff;
 }
-
+input:disabled {
+  background-color: #f0f0f0;
+  color: #666;
+  cursor: not-allowed;
+  border: 1px solid #ddd;
+}
 button {
   background-color: #2196F3;
   color: white;

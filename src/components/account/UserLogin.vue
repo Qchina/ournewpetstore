@@ -26,7 +26,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import axios from 'axios'; 
 export default {
   data() {
     return {
@@ -35,87 +35,65 @@ export default {
         password: '',
         captcha: ''
       },
-      captchaImage: '',  // 验证码图片base64数据
-      captchaText: ''    // 验证码文本
+      captchaImage: '' // 验证码图片base64数据
+      
     }
   },
   mounted() {
-    this.refreshCaptcha();  // 组件加载时获取验证码
+    this.refreshCaptcha();  // 添加mounted钩子，确保组件加载时获取验证码
   },
   methods: {
-    generateCaptcha() {
-    // 生成4位随机字母数字验证码
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    let result = '';
-    for (let i = 0; i < 4; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    this.captchaText = result;
-    
-    // 创建验证码图片（简单实现）
-    const canvas = document.createElement('canvas');
-    canvas.width = 100;
-    canvas.height = 40;
-    const ctx = canvas.getContext('2d');
-    
-    // 背景色
-    ctx.fillStyle = '#f5f5f5';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // 绘制验证码文本
-    ctx.font = '24px Arial';
-    ctx.fillStyle = '#333';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(result, canvas.width/2, canvas.height/2);
-    
-    // 添加干扰线
-    for (let i = 0; i < 5; i++) {
-      ctx.strokeStyle = '#ccc';
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.stroke();
-    }
-    
-    this.captchaImage = canvas.toDataURL();
-  },
-  
-  refreshCaptcha() {
-    this.generateCaptcha();
-  },
-  
-  mounted() {
-    this.generateCaptcha(); // 组件加载时生成验证码
-  },
-  
-  async handleLogin() {
-    // 验证码验证（不区分大小写）
-    if (this.loginForm.captcha.toUpperCase() !== this.captchaText.toUpperCase()) {
-      alert('验证码错误');
-      this.refreshCaptcha();
-      return;
-    }
+    // 从后端获取验证码
+    async refreshCaptcha() {
       try {
-      const response = await axios.post('http://localhost:8080/api/user/login', {
-        username: this.loginForm.username,
-        password: this.loginForm.password
-      });
-      
-      if (response.data.success) {
-        // 登录成功处理
-        localStorage.setItem('token', response.data.token);
-        this.$router.push('/'); // 跳转到首页
-      } else {
-        alert(response.data.message || '登录失败');
+        const response = await axios.get('http://localhost:9090/api/v1/captcha', {
+          withCredentials: true
+        });
+        this.captchaImage = response.data.captchaImage;
+        console.log('验证码获取成功');
+      } catch (error) {
+        console.error('获取验证码失败:', error);
+        alert('获取验证码失败，请刷新页面重试');
+      }
+    },
+    async handleLogin() {
+      try {
+        if (!this.loginForm.captcha) {
+          alert('请输入验证码');
+          return;
+        }
+
+        const formData = new URLSearchParams();
+        formData.append('username', this.loginForm.username);
+        formData.append('password', this.loginForm.password);
+        formData.append('code', this.loginForm.captcha);  // 移除toLowerCase()
+        
+        console.log('正在提交登录请求...');
+        const response = await axios.post('http://localhost:9090/api/v1/accounts/login', formData, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          withCredentials: true
+        });
+        
+        if (response.data.success) {
+          localStorage.setItem('user', JSON.stringify(response.data.data));
+          this.$router.push('/accountauth');
+        } else {
+          alert(response.data.message || '登录失败');
+          this.refreshCaptcha();
+        }
+      } catch (error) {
+        console.error('登录请求失败:', error.response?.data || error);
+        if (error.response?.data?.message) {
+          alert(error.response.data.message);
+        } else {
+          alert('登录失败，请检查用户名和密码');
+        }
         this.refreshCaptcha();
       }
-    } catch (error) {
-      console.error('登录请求失败:', error);
-      alert('网络错误，请稍后重试');
-      this.refreshCaptcha();
-    }
     },
+    
     switchToRegister() {
       this.$emit('switch-to-register')
     }

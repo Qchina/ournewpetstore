@@ -4,7 +4,7 @@ const routes = [
   // ...其他路由...
   {
     path: '/',
-    redirect: '/accountauth'  // 确保有默认重定向
+    redirect: '/userauth'  // 确保有默认重定向
   },
   {
     path: '/userauth',
